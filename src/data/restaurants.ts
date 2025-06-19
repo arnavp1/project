@@ -35,5 +35,40 @@ export const restaurants: Restaurant[] = [
     logo: '🌮',
     primaryColor: '#702F8A',
     pointsName: 'Points'
+  },
+  {
+    id: 'burgerking',
+    name: 'Burger King',
+    logo: '👑',
+    primaryColor: '#EC1C24',
+    pointsName: 'Crowns'
+  },
+  {
+    id: 'kfc',
+    name: 'KFC',
+    logo: '🍗',
+    primaryColor: '#F40027',
+    pointsName: 'Points'
+  },
+  {
+    id: 'wendys',
+    name: "Wendy's",
+    logo: '🍔',
+    primaryColor: '#E31837',
+    pointsName: 'Points'
+  },
+  {
+    id: 'dunkin',
+    name: "Dunkin'",
+    logo: '🍩',
+    primaryColor: '#FF6600',
+    pointsName: 'Points'
+  },
+  {
+    id: 'pizzahut',
+    name: 'Pizza Hut',
+    logo: '🍕',
+    primaryColor: '#EE3124',
+    pointsName: 'Points'
   }
 ];
