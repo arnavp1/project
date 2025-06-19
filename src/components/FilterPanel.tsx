@@ -10,7 +10,7 @@ interface FilterPanelProps {
 }
 
 export function FilterPanel({ filters, onFiltersChange, onClose }: FilterPanelProps) {
-  const categories = ['Burgers', 'Bowls', 'Burritos', 'Coffee', 'Beverages', 'Sides', 'Desserts', 'Sandwiches', 'Tacos', 'Food'];
+  const categories = ['Burgers', 'Sandwiches', 'Chicken', 'Sides', 'Breakfast', 'Beverages', 'Desserts', 'Meals'];
 
   const handleRestaurantToggle = (restaurantId: string) => {
     const newRestaurants = filters.restaurants.includes(restaurantId)
@@ -137,7 +137,7 @@ export function FilterPanel({ filters, onFiltersChange, onClose }: FilterPanelPr
                   onChange={(e) => onFiltersChange({ ...filters, minValue: Number(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                   min="0"
-                  max="100"
+                  max="200"
                 />
               </div>
               <label className="flex items-center space-x-2 cursor-pointer">

@@ -19,6 +19,7 @@ export interface Restaurant {
   logo: string;
   primaryColor: string;
   pointsName: string;
+  pointValue: number; // Dollar value per point for this restaurant
 }
 
 export interface FilterOptions {
