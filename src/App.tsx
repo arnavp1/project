@@ -10,6 +10,7 @@ import { FilterOptions, SortOption, RewardItem } from './types/rewards';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { rewardsAPI, RewardItem as SupabaseRewardItem, MenuItem, RewardProgram, RestaurantChain } from './lib/supabase';
 import { mockRewardItems } from './data/mockData';
+import { testDatabaseConnection } from './lib/testConnection';
 
 type ViewMode = 'rewards' | 'database' | 'api';
 
@@ -59,6 +60,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [useMockData, setUseMockData] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'testing' | 'connected' | 'failed'>('testing');
   
   const [filters, setFilters] = useState<FilterOptions>({
     restaurants: [],
@@ -75,45 +77,70 @@ function App() {
     label: 'Best Value'
   });
 
-  // Fetch real data from Supabase
+  // Test database connection and fetch real data
   useEffect(() => {
-    const fetchRewardItems = async () => {
+    const initializeData = async () => {
       try {
         setLoading(true);
         setError(null);
+        setConnectionStatus('testing');
         
-        console.log('Starting data fetch...');
+        console.log('🚀 Initializing database connection...');
+        
+        // First test the connection
+        const connectionTest = await testDatabaseConnection();
+        
+        if (!connectionTest.success) {
+          console.warn('⚠️ Database connection failed, using mock data');
+          setConnectionStatus('failed');
+          setRewardItems(mockRewardItems);
+          setUseMockData(true);
+          setError(`Database connection failed: ${connectionTest.error?.message || 'Unknown error'}`);
+          return;
+        }
+        
+        console.log('✅ Database connection successful!');
+        setConnectionStatus('connected');
+        
+        // Now try to fetch the actual reward items
+        console.log('📊 Fetching reward items...');
         const data = await rewardsAPI.getRewardItems();
-        console.log('Raw data received:', data);
+        console.log('📦 Raw data received:', data?.length || 0, 'items');
         
         if (data && Array.isArray(data) && data.length > 0) {
           // Check if we have the expected structure
           const firstItem = data[0];
-          console.log('First item structure:', firstItem);
+          console.log('🔍 First item structure check:', {
+            hasRewardPrograms: !!firstItem.reward_programs,
+            hasMenuItems: !!firstItem.menu_items,
+            hasRestaurantChains: !!firstItem.reward_programs?.restaurant_chains
+          });
           
           if (firstItem.reward_programs && firstItem.menu_items) {
             // We have the full joined data
             const mappedItems = data.map(mapSupabaseRewardItemToFrontendRewardItem);
-            console.log('Mapped items:', mappedItems.length);
+            console.log('✅ Successfully mapped', mappedItems.length, 'reward items');
+            console.log('📋 Sample mapped item:', mappedItems[0]);
             setRewardItems(mappedItems);
             setUseMockData(false);
           } else {
             // We have simple data, fall back to mock data for now
-            console.log('Simple data structure detected, using mock data');
+            console.log('⚠️ Simple data structure detected, using mock data');
             setRewardItems(mockRewardItems);
             setUseMockData(true);
           }
         } else {
           // No data or empty array, use mock data
-          console.log('No data received, using mock data');
+          console.log('⚠️ No data received, using mock data');
           setRewardItems(mockRewardItems);
           setUseMockData(true);
         }
       } catch (err) {
-        console.error('Error fetching reward items:', err);
+        console.error('💥 Error during initialization:', err);
+        setConnectionStatus('failed');
         setError(`Failed to load reward items: ${err instanceof Error ? err.message : 'Unknown error'}`);
         // Fall back to mock data on error
-        console.log('Error occurred, falling back to mock data');
+        console.log('🔄 Falling back to mock data');
         setRewardItems(mockRewardItems);
         setUseMockData(true);
       } finally {
@@ -121,7 +148,7 @@ function App() {
       }
     };
 
-    fetchRewardItems();
+    initializeData();
   }, []);
 
   const filteredAndSortedItems = useMemo(() => {
@@ -213,7 +240,11 @@ function App() {
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                   <p className="text-gray-600">Loading reward items...</p>
-                  <p className="text-sm text-gray-500 mt-2">Connecting to database...</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    {connectionStatus === 'testing' && 'Testing database connection...'}
+                    {connectionStatus === 'connected' && 'Fetching data from database...'}
+                    {connectionStatus === 'failed' && 'Loading fallback data...'}
+                  </p>
                 </div>
               </div>
             </main>
@@ -222,39 +253,54 @@ function App() {
 
         return (
           <>
-            {/* Data Source Indicator */}
-            {useMockData && (
-              <div className="bg-yellow-50 border border-yellow-200 px-4 py-3">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-yellow-600">⚠️</span>
-                    <span className="text-sm text-yellow-800">
-                      Currently displaying sample data. Database connection in progress.
+            {/* Connection Status Indicator */}
+            <div className={`border-b px-4 py-3 ${
+              connectionStatus === 'connected' 
+                ? 'bg-green-50 border-green-200' 
+                : connectionStatus === 'failed'
+                ? 'bg-yellow-50 border-yellow-200'
+                : 'bg-blue-50 border-blue-200'
+            }`}>
+              <div className="max-w-7xl mx-auto flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <span className={`text-sm ${
+                    connectionStatus === 'connected' 
+                      ? 'text-green-600' 
+                      : connectionStatus === 'failed'
+                      ? 'text-yellow-600'
+                      : 'text-blue-600'
+                  }`}>
+                    {connectionStatus === 'connected' && '✅ Connected to live database'}
+                    {connectionStatus === 'failed' && '⚠️ Using sample data - database connection in progress'}
+                    {connectionStatus === 'testing' && '🔄 Testing database connection...'}
+                  </span>
+                  {!useMockData && (
+                    <span className="text-xs text-green-500 bg-green-100 px-2 py-1 rounded">
+                      {rewardItems.length} live items
                     </span>
-                  </div>
+                  )}
+                </div>
+                {connectionStatus === 'failed' && (
                   <button
                     onClick={handleRetry}
                     className="text-sm text-yellow-800 hover:text-yellow-900 underline"
                   >
                     Retry Connection
                   </button>
-                </div>
+                )}
               </div>
-            )}
+            </div>
 
-            {error && !useMockData && (
-              <div className="bg-red-50 border border-red-200 px-4 py-3">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-red-600">❌</span>
-                    <span className="text-sm text-red-800">{error}</span>
+            {error && connectionStatus === 'failed' && (
+              <div className="bg-red-50 border-b border-red-200 px-4 py-3">
+                <div className="max-w-7xl mx-auto">
+                  <div className="flex items-start space-x-2">
+                    <span className="text-red-600 mt-0.5">❌</span>
+                    <div className="flex-1">
+                      <p className="text-sm text-red-800 font-medium">Database Connection Error</p>
+                      <p className="text-xs text-red-700 mt-1">{error}</p>
+                    </div>
                   </div>
-                  <button
-                    onClick={handleRetry}
-                    className="text-sm text-red-800 hover:text-red-900 underline"
-                  >
-                    Try Again
-                  </button>
                 </div>
               </div>
             )}
@@ -278,11 +324,12 @@ function App() {
                     : 'Find the best value redemption options across major restaurant chains'
                   }
                 </p>
-                {useMockData && (
-                  <p className="text-sm text-yellow-600 mt-1">
-                    Showing comprehensive sample data including updated McDonald's Big Mac (6,000 points)
-                  </p>
-                )}
+                <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
+                  <span>Data source: {useMockData ? 'Sample data' : 'Live database'}</span>
+                  {!useMockData && (
+                    <span>Last updated: {new Date().toLocaleDateString()}</span>
+                  )}
+                </div>
               </div>
 
               <StatsOverview items={filteredAndSortedItems} />
