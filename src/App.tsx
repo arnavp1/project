@@ -1,32 +1,18 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Header } from './components/Header';
 import { FilterPanel } from './components/FilterPanel';
 import { SortControls } from './components/SortControls';
 import { StatsOverview } from './components/StatsOverview';
 import { RewardCard } from './components/RewardCard';
-import { DatabaseDashboard } from './components/DatabaseDashboard';
-import { APIDocumentation } from './components/APIDocumentation';
-import { DataSourceStatus } from './components/DataSourceStatus';
 import { FilterOptions, SortOption, RewardItem } from './types/rewards';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { RewardsScraper } from './lib/rewardsScraper';
-import { restaurants } from './data/restaurants';
-
-type ViewMode = 'rewards' | 'database' | 'api';
+import { rewardItems } from './data/rewardItems';
 
 function App() {
-  const [currentView, setCurrentView] = useState<ViewMode>('rewards');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
   const [favorites, setFavorites] = useLocalStorage<string[]>('reward-favorites', []);
-  
-  // Real data state
-  const [rewardItems, setRewardItems] = useState<RewardItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<string>('');
-  const [refreshing, setRefreshing] = useState(false);
   
   const [filters, setFilters] = useState<FilterOptions>({
     restaurants: [],
@@ -42,57 +28,6 @@ function App() {
     direction: 'desc',
     label: 'Best Value'
   });
-
-  // Initialize real-time data scraping
-  useEffect(() => {
-    loadRealData();
-    
-    // Set up auto-refresh every 30 minutes
-    const refreshInterval = setInterval(loadRealData, 30 * 60 * 1000);
-    
-    return () => clearInterval(refreshInterval);
-  }, []);
-
-  const loadRealData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      console.log('🚀 Starting comprehensive restaurant rewards data collection...');
-      
-      const scraper = new RewardsScraper();
-      const realRewards = await scraper.scrapeAllRestaurants();
-      
-      if (realRewards && realRewards.length > 0) {
-        console.log(`✅ Successfully loaded ${realRewards.length} real reward items from ${scraper.getAvailableRestaurants().length} restaurants`);
-        setRewardItems(realRewards);
-        setLastUpdated(new Date().toLocaleString());
-      } else {
-        throw new Error('No reward data could be collected from restaurant sources');
-      }
-      
-    } catch (err) {
-      console.error('💥 Error loading real reward data:', err);
-      setError(`Failed to load real-time data: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      const scraper = new RewardsScraper();
-      const freshData = await scraper.scrapeAllRestaurants();
-      setRewardItems(freshData);
-      setLastUpdated(new Date().toLocaleString());
-      setError(null);
-    } catch (err) {
-      setError(`Refresh failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setRefreshing(false);
-    }
-  };
 
   const filteredAndSortedItems = useMemo(() => {
     let items = [...rewardItems];
@@ -154,7 +89,7 @@ function App() {
     });
 
     return items;
-  }, [searchTerm, filters, showFavorites, favorites, currentSort, rewardItems]);
+  }, [searchTerm, filters, showFavorites, favorites, currentSort]);
 
   const toggleFavorite = (itemId: string) => {
     setFavorites(prev => 
@@ -162,169 +97,6 @@ function App() {
         ? prev.filter(id => id !== itemId)
         : [...prev, itemId]
     );
-  };
-
-  // Generate data source status
-  const getDataSources = () => {
-    const restaurantCounts = rewardItems.reduce((acc, item) => {
-      acc[item.restaurant] = (acc[item.restaurant] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    return restaurants.map(restaurant => ({
-      restaurant: restaurant.name,
-      logo: restaurant.logo,
-      status: restaurantCounts[restaurant.id] > 0 ? 'active' : 'error' as const,
-      lastUpdate: lastUpdated || 'Never',
-      itemCount: restaurantCounts[restaurant.id] || 0,
-      source: `${restaurant.name} Official API/Website`
-    }));
-  };
-
-  const renderContent = () => {
-    switch (currentView) {
-      case 'database':
-        return (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-            <DatabaseDashboard />
-            <DataSourceStatus 
-              sources={getDataSources()}
-              onRefresh={handleRefresh}
-              isRefreshing={refreshing}
-            />
-          </div>
-        );
-      case 'api':
-        return (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <APIDocumentation />
-          </div>
-        );
-      default:
-        // Handle loading and error states
-        if (loading) {
-          return (
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600">Collecting real-time reward data...</p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Scraping McDonald's, Starbucks, Chipotle, and 7 other restaurant rewards programs...
-                  </p>
-                </div>
-              </div>
-            </main>
-          );
-        }
-
-        return (
-          <>
-            {/* Real-time Data Status */}
-            <div className="bg-green-50 border-b border-green-200 px-4 py-3">
-              <div className="max-w-7xl mx-auto flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm text-green-600">
-                    ✅ Live data from {rewardItems.length} restaurant reward items across 10 major chains
-                  </span>
-                  <span className="text-xs text-green-500 bg-green-100 px-2 py-1 rounded">
-                    Real-time scraping active
-                  </span>
-                </div>
-                <div className="flex items-center space-x-4">
-                  {lastUpdated && (
-                    <span className="text-xs text-green-600">
-                      Last updated: {lastUpdated}
-                    </span>
-                  )}
-                  <button
-                    onClick={handleRefresh}
-                    disabled={refreshing}
-                    className="text-sm text-green-800 hover:text-green-900 underline disabled:opacity-50"
-                  >
-                    {refreshing ? 'Refreshing...' : 'Refresh Data'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border-b border-red-200 px-4 py-3">
-                <div className="max-w-7xl mx-auto">
-                  <div className="flex items-start space-x-2">
-                    <span className="text-red-600 mt-0.5">❌</span>
-                    <div className="flex-1">
-                      <p className="text-sm text-red-800 font-medium">Data Collection Error</p>
-                      <p className="text-xs text-red-700 mt-1">{error}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {showFilters && (
-              <FilterPanel
-                filters={filters}
-                onFiltersChange={setFilters}
-                onClose={() => setShowFilters(false)}
-              />
-            )}
-
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-              <div className="mb-8">
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                  {showFavorites ? 'Your Favorite Rewards' : 'Live Restaurant Rewards Analysis'}
-                </h2>
-                <p className="text-gray-600">
-                  {showFavorites 
-                    ? 'Track your saved reward options and never miss a great deal'
-                    : 'Real-time data from restaurant apps and websites - find the best value redemption options'
-                  }
-                </p>
-                <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
-                  <span>Data source: Live restaurant APIs & web scraping</span>
-                  <span>Auto-refresh: Every 30 minutes</span>
-                  <span>Coverage: McDonald's, Starbucks, Chipotle, Subway, Taco Bell, Burger King, KFC, Wendy's, Dunkin', Pizza Hut</span>
-                </div>
-              </div>
-
-              <StatsOverview items={filteredAndSortedItems} />
-
-              <SortControls
-                currentSort={currentSort}
-                onSortChange={setCurrentSort}
-                totalItems={filteredAndSortedItems.length}
-              />
-
-              {filteredAndSortedItems.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 text-6xl mb-4">🍽️</div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No rewards found</h3>
-                  <p className="text-gray-600">
-                    {showFavorites 
-                      ? "You haven't saved any favorites yet. Start browsing to find great deals!"
-                      : rewardItems.length === 0 
-                        ? "No reward items are currently available from restaurant sources."
-                        : "Try adjusting your search or filters to find more options."
-                    }
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredAndSortedItems.map(item => (
-                    <RewardCard
-                      key={item.id}
-                      item={item}
-                      isFavorite={favorites.includes(item.id)}
-                      onToggleFavorite={toggleFavorite}
-                    />
-                  ))}
-                </div>
-              )}
-            </main>
-          </>
-        );
-    }
   };
 
   return (
@@ -336,11 +108,65 @@ function App() {
         onFavoritesToggle={() => setShowFavorites(!showFavorites)}
         showFilters={showFilters}
         showFavorites={showFavorites}
-        currentView={currentView}
-        onViewChange={setCurrentView}
       />
 
-      {renderContent()}
+      {showFilters && (
+        <FilterPanel
+          filters={filters}
+          onFiltersChange={setFilters}
+          onClose={() => setShowFilters(false)}
+        />
+      )}
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            {showFavorites ? 'Your Favorite Rewards' : 'Restaurant Rewards Analysis'}
+          </h2>
+          <p className="text-gray-600">
+            {showFavorites 
+              ? 'Track your saved reward options and never miss a great deal'
+              : 'Find the best value redemption options across major restaurant chains'
+            }
+          </p>
+          <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
+            <span>Total rewards: {rewardItems.length}</span>
+            <span>Last updated: {new Date().toLocaleDateString()}</span>
+          </div>
+        </div>
+
+        <StatsOverview items={filteredAndSortedItems} />
+
+        <SortControls
+          currentSort={currentSort}
+          onSortChange={setCurrentSort}
+          totalItems={filteredAndSortedItems.length}
+        />
+
+        {filteredAndSortedItems.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-gray-400 text-6xl mb-4">🍽️</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No rewards found</h3>
+            <p className="text-gray-600">
+              {showFavorites 
+                ? "You haven't saved any favorites yet. Start browsing to find great deals!"
+                : "Try adjusting your search or filters to find more options."
+              }
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredAndSortedItems.map(item => (
+              <RewardCard
+                key={item.id}
+                item={item}
+                isFavorite={favorites.includes(item.id)}
+                onToggleFavorite={toggleFavorite}
+              />
+            ))}
+          </div>
+        )}
+      </main>
     </div>
   );
 }

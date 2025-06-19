@@ -1,5 +1,5 @@
 {
-  "name": "rewards-database-system",
+  "name": "rewards-analyzer",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,25 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "collect-data": "node scripts/dataCollector.js",
-    "validate-data": "node scripts/dataValidator.js",
-    "update-db": "node scripts/updateDatabase.js"
+    "preview": "vite preview"
   },
   "dependencies": {
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@supabase/supabase-js": "^2.39.0",
-    "recharts": "^2.10.1",
-    "date-fns": "^3.0.6",
-    "axios": "^1.6.5",
-    "cheerio": "^1.0.0-rc.12",
-    "puppeteer": "^21.6.1",
-    "node-cron": "^3.0.3",
-    "joi": "^17.11.0",
-    "csv-parser": "^3.0.0",
-    "csv-writer": "^1.6.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
