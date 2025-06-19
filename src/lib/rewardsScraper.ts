@@ -1,2 +1,2 @@
-// Re-export the comprehensive scraper as the main interface
-export { ComprehensiveRewardsScraper as RewardsScraper } from './restaurantScrapers';
+// Use the accurate rewards scraper that only shows redeemable items
+export { AccurateRewardsScraper as RewardsScraper } from './accurateRewardsScraper';
