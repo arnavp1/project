@@ -6,9 +6,11 @@ import { StatsOverview } from './components/StatsOverview';
 import { RewardCard } from './components/RewardCard';
 import { DatabaseDashboard } from './components/DatabaseDashboard';
 import { APIDocumentation } from './components/APIDocumentation';
+import { DataSourceStatus } from './components/DataSourceStatus';
 import { FilterOptions, SortOption, RewardItem } from './types/rewards';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { RewardsScraper } from './lib/rewardsScraper';
+import { restaurants } from './data/restaurants';
 
 type ViewMode = 'rewards' | 'database' | 'api';
 
@@ -24,6 +26,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [refreshing, setRefreshing] = useState(false);
   
   const [filters, setFilters] = useState<FilterOptions>({
     restaurants: [],
@@ -42,32 +45,6 @@ function App() {
 
   // Initialize real-time data scraping
   useEffect(() => {
-    const loadRealData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        console.log('🚀 Starting real-time restaurant rewards data collection...');
-        
-        const scraper = new RewardsScraper();
-        const realRewards = await scraper.scrapeAllRestaurants();
-        
-        if (realRewards && realRewards.length > 0) {
-          console.log(`✅ Successfully loaded ${realRewards.length} real reward items`);
-          setRewardItems(realRewards);
-          setLastUpdated(new Date().toLocaleString());
-        } else {
-          throw new Error('No reward data could be collected from restaurant sources');
-        }
-        
-      } catch (err) {
-        console.error('💥 Error loading real reward data:', err);
-        setError(`Failed to load real-time data: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadRealData();
     
     // Set up auto-refresh every 30 minutes
@@ -75,6 +52,47 @@ function App() {
     
     return () => clearInterval(refreshInterval);
   }, []);
+
+  const loadRealData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🚀 Starting comprehensive restaurant rewards data collection...');
+      
+      const scraper = new RewardsScraper();
+      const realRewards = await scraper.scrapeAllRestaurants();
+      
+      if (realRewards && realRewards.length > 0) {
+        console.log(`✅ Successfully loaded ${realRewards.length} real reward items from ${scraper.getAvailableRestaurants().length} restaurants`);
+        setRewardItems(realRewards);
+        setLastUpdated(new Date().toLocaleString());
+      } else {
+        throw new Error('No reward data could be collected from restaurant sources');
+      }
+      
+    } catch (err) {
+      console.error('💥 Error loading real reward data:', err);
+      setError(`Failed to load real-time data: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const scraper = new RewardsScraper();
+      const freshData = await scraper.scrapeAllRestaurants();
+      setRewardItems(freshData);
+      setLastUpdated(new Date().toLocaleString());
+      setError(null);
+    } catch (err) {
+      setError(`Refresh failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const filteredAndSortedItems = useMemo(() => {
     let items = [...rewardItems];
@@ -146,27 +164,42 @@ function App() {
     );
   };
 
-  const handleRefresh = async () => {
-    setLoading(true);
-    try {
-      const scraper = new RewardsScraper();
-      const freshData = await scraper.scrapeAllRestaurants();
-      setRewardItems(freshData);
-      setLastUpdated(new Date().toLocaleString());
-      setError(null);
-    } catch (err) {
-      setError(`Refresh failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setLoading(false);
-    }
+  // Generate data source status
+  const getDataSources = () => {
+    const restaurantCounts = rewardItems.reduce((acc, item) => {
+      acc[item.restaurant] = (acc[item.restaurant] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return restaurants.map(restaurant => ({
+      restaurant: restaurant.name,
+      logo: restaurant.logo,
+      status: restaurantCounts[restaurant.id] > 0 ? 'active' : 'error' as const,
+      lastUpdate: lastUpdated || 'Never',
+      itemCount: restaurantCounts[restaurant.id] || 0,
+      source: `${restaurant.name} Official API/Website`
+    }));
   };
 
   const renderContent = () => {
     switch (currentView) {
       case 'database':
-        return <DatabaseDashboard />;
+        return (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+            <DatabaseDashboard />
+            <DataSourceStatus 
+              sources={getDataSources()}
+              onRefresh={handleRefresh}
+              isRefreshing={refreshing}
+            />
+          </div>
+        );
       case 'api':
-        return <APIDocumentation />;
+        return (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <APIDocumentation />
+          </div>
+        );
       default:
         // Handle loading and error states
         if (loading) {
@@ -177,7 +210,7 @@ function App() {
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                   <p className="text-gray-600">Collecting real-time reward data...</p>
                   <p className="text-sm text-gray-500 mt-2">
-                    Scraping McDonald's, Starbucks, Chipotle, and other restaurant rewards...
+                    Scraping McDonald's, Starbucks, Chipotle, and 7 other restaurant rewards programs...
                   </p>
                 </div>
               </div>
@@ -192,7 +225,7 @@ function App() {
               <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-green-600">
-                    ✅ Live data from {rewardItems.length} restaurant reward programs
+                    ✅ Live data from {rewardItems.length} restaurant reward items across 10 major chains
                   </span>
                   <span className="text-xs text-green-500 bg-green-100 px-2 py-1 rounded">
                     Real-time scraping active
@@ -206,10 +239,10 @@ function App() {
                   )}
                   <button
                     onClick={handleRefresh}
-                    disabled={loading}
+                    disabled={refreshing}
                     className="text-sm text-green-800 hover:text-green-900 underline disabled:opacity-50"
                   >
-                    Refresh Data
+                    {refreshing ? 'Refreshing...' : 'Refresh Data'}
                   </button>
                 </div>
               </div>
@@ -251,7 +284,7 @@ function App() {
                 <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
                   <span>Data source: Live restaurant APIs & web scraping</span>
                   <span>Auto-refresh: Every 30 minutes</span>
-                  <span>Coverage: 10+ major restaurant chains</span>
+                  <span>Coverage: McDonald's, Starbucks, Chipotle, Subway, Taco Bell, Burger King, KFC, Wendy's, Dunkin', Pizza Hut</span>
                 </div>
               </div>
 
