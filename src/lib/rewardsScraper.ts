@@ -1,2 +1,2 @@
-// Use the accurate rewards scraper that only shows redeemable items
-export { AccurateRewardsScraper as RewardsScraper } from './accurateRewardsScraper';
+// Export the comprehensive scraper as the main scraper
+export { RewardsScraper } from './comprehensiveRewardsScraper';
