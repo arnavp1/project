@@ -9,15 +9,16 @@ import { APIDocumentation } from './components/APIDocumentation';
 import { FilterOptions, SortOption, RewardItem } from './types/rewards';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { rewardsAPI, RewardItem as SupabaseRewardItem, MenuItem, RewardProgram, RestaurantChain } from './lib/supabase';
+import { mockRewardItems } from './data/mockData';
 
 type ViewMode = 'rewards' | 'database' | 'api';
 
 // Interface for the joined data structure returned by Supabase
 interface SupabaseJoinedRewardItem extends SupabaseRewardItem {
-  reward_programs: RewardProgram & {
-    restaurant_chains: RestaurantChain;
+  reward_programs?: RewardProgram & {
+    restaurant_chains?: RestaurantChain;
   };
-  menu_items: MenuItem & {
+  menu_items?: MenuItem & {
     menu_categories?: {
       name: string;
       slug: string;
@@ -57,6 +58,7 @@ function App() {
   const [rewardItems, setRewardItems] = useState<RewardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [useMockData, setUseMockData] = useState(false);
   
   const [filters, setFilters] = useState<FilterOptions>({
     restaurants: [],
@@ -80,19 +82,40 @@ function App() {
         setLoading(true);
         setError(null);
         
+        console.log('Starting data fetch...');
         const data = await rewardsAPI.getRewardItems();
+        console.log('Raw data received:', data);
         
-        if (data && Array.isArray(data)) {
-          const mappedItems = data.map(mapSupabaseRewardItemToFrontendRewardItem);
-          setRewardItems(mappedItems);
+        if (data && Array.isArray(data) && data.length > 0) {
+          // Check if we have the expected structure
+          const firstItem = data[0];
+          console.log('First item structure:', firstItem);
+          
+          if (firstItem.reward_programs && firstItem.menu_items) {
+            // We have the full joined data
+            const mappedItems = data.map(mapSupabaseRewardItemToFrontendRewardItem);
+            console.log('Mapped items:', mappedItems.length);
+            setRewardItems(mappedItems);
+            setUseMockData(false);
+          } else {
+            // We have simple data, fall back to mock data for now
+            console.log('Simple data structure detected, using mock data');
+            setRewardItems(mockRewardItems);
+            setUseMockData(true);
+          }
         } else {
-          // Fallback to empty array if no data
-          setRewardItems([]);
+          // No data or empty array, use mock data
+          console.log('No data received, using mock data');
+          setRewardItems(mockRewardItems);
+          setUseMockData(true);
         }
       } catch (err) {
         console.error('Error fetching reward items:', err);
-        setError('Failed to load reward items. Please try again later.');
-        setRewardItems([]);
+        setError(`Failed to load reward items: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        // Fall back to mock data on error
+        console.log('Error occurred, falling back to mock data');
+        setRewardItems(mockRewardItems);
+        setUseMockData(true);
       } finally {
         setLoading(false);
       }
@@ -171,6 +194,10 @@ function App() {
     );
   };
 
+  const handleRetry = () => {
+    window.location.reload();
+  };
+
   const renderContent = () => {
     switch (currentView) {
       case 'database':
@@ -186,25 +213,8 @@ function App() {
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                   <p className="text-gray-600">Loading reward items...</p>
+                  <p className="text-sm text-gray-500 mt-2">Connecting to database...</p>
                 </div>
-              </div>
-            </main>
-          );
-        }
-
-        if (error) {
-          return (
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-              <div className="text-center py-12">
-                <div className="text-red-400 text-6xl mb-4">⚠️</div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Data</h3>
-                <p className="text-gray-600 mb-4">{error}</p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
-                >
-                  Try Again
-                </button>
               </div>
             </main>
           );
@@ -212,6 +222,43 @@ function App() {
 
         return (
           <>
+            {/* Data Source Indicator */}
+            {useMockData && (
+              <div className="bg-yellow-50 border border-yellow-200 px-4 py-3">
+                <div className="max-w-7xl mx-auto flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-yellow-600">⚠️</span>
+                    <span className="text-sm text-yellow-800">
+                      Currently displaying sample data. Database connection in progress.
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleRetry}
+                    className="text-sm text-yellow-800 hover:text-yellow-900 underline"
+                  >
+                    Retry Connection
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {error && !useMockData && (
+              <div className="bg-red-50 border border-red-200 px-4 py-3">
+                <div className="max-w-7xl mx-auto flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-red-600">❌</span>
+                    <span className="text-sm text-red-800">{error}</span>
+                  </div>
+                  <button
+                    onClick={handleRetry}
+                    className="text-sm text-red-800 hover:text-red-900 underline"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </div>
+            )}
+
             {showFilters && (
               <FilterPanel
                 filters={filters}
@@ -231,6 +278,11 @@ function App() {
                     : 'Find the best value redemption options across major restaurant chains'
                   }
                 </p>
+                {useMockData && (
+                  <p className="text-sm text-yellow-600 mt-1">
+                    Showing comprehensive sample data including updated McDonald's Big Mac (6,000 points)
+                  </p>
+                )}
               </div>
 
               <StatsOverview items={filteredAndSortedItems} />
@@ -249,7 +301,7 @@ function App() {
                     {showFavorites 
                       ? "You haven't saved any favorites yet. Start browsing to find great deals!"
                       : rewardItems.length === 0 
-                        ? "No reward items are currently available in the database."
+                        ? "No reward items are currently available."
                         : "Try adjusting your search or filters to find more options."
                     }
                   </p>
